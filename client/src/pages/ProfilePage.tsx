@@ -11,29 +11,38 @@ import { toast } from "sonner";
 export default function ProfilePage() {
   const defaultProfile = useMemo(
     () => ({
-      name: "John Doe",
-      email: "john@example.com",
-      tier: "Gold",
+      name: "Guest",
+      email: "",
+      phone: "",
+      tier: "Free",
     }),
     []
   );
 
   const [profile, setProfile] = useState(defaultProfile);
   const [editOpen, setEditOpen] = useState(false);
-  const [draft, setDraft] = useState({ name: "", email: "" });
+  const [draft, setDraft] = useState({ name: "", email: "", phone: "" });
 
   useEffect(() => {
-    const raw = localStorage.getItem("biome_profile");
-    if (!raw) return;
-    try {
-      const next = JSON.parse(raw) as Partial<typeof defaultProfile>;
-      setProfile((p) => ({
-        ...p,
-        ...next,
-      }));
-    } catch {
-      return;
-    }
+    (async () => {
+      try {
+        const resp = await fetch("/api/users/profile", { credentials: "include" });
+        const json = (await resp.json()) as {
+          name: string;
+          email: string | null;
+          phone?: string | null;
+          tier: string;
+        };
+        setProfile({
+          name: json.name || "Guest",
+          email: json.email || "",
+          phone: json.phone || "",
+          tier: json.tier || "Free",
+        });
+      } catch {
+        return;
+      }
+    })();
   }, [defaultProfile]);
 
   const stats = [
@@ -74,8 +83,14 @@ export default function ProfilePage() {
                   </div>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
                     <Mail className="w-4 h-4" />
-                    <span>{profile.email}</span>
+                    <span>{profile.email || "—"}</span>
                   </div>
+                  {profile.phone && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                      <Mail className="w-4 h-4 opacity-0" />
+                      <span>{profile.phone}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -84,11 +99,25 @@ export default function ProfilePage() {
                   variant="outline"
                   className="flex-1 sm:flex-none"
                   onClick={() => {
-                    setDraft({ name: profile.name, email: profile.email });
+                    setDraft({ name: profile.name, email: profile.email, phone: profile.phone });
                     setEditOpen(true);
                   }}
                 >
                   Edit Profile
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1 sm:flex-none"
+                  onClick={async () => {
+                    try {
+                      await fetch("/auth/logout", { method: "POST", credentials: "include" });
+                      window.location.href = "/auth";
+                    } catch {
+                      toast.error("Logout failed.");
+                    }
+                  }}
+                >
+                  Logout
                 </Button>
                 <Button className="flex-1 sm:flex-none bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white">
                   Upgrade
@@ -199,6 +228,14 @@ export default function ProfilePage() {
                 placeholder="you@example.com"
               />
             </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Phone</label>
+              <Input
+                value={draft.phone}
+                onChange={(e) => setDraft((d) => ({ ...d, phone: e.target.value }))}
+                placeholder="+91XXXXXXXXXX"
+              />
+            </div>
           </div>
 
           <DialogFooter>
@@ -215,19 +252,14 @@ export default function ProfilePage() {
               onClick={() => {
                 const name = draft.name.trim();
                 const email = draft.email.trim();
-                if (!name || !email) {
-                  toast.error("Please fill name and email.");
+                const phone = draft.phone.trim();
+                if (!name) {
+                  toast.error("Please enter your name.");
                   return;
                 }
-                const okEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-                if (!okEmail) {
-                  toast.error("Please enter a valid email.");
-                  return;
-                }
-                const next = { ...profile, name, email };
+                const next = { ...profile, name, email, phone };
                 setProfile(next);
-                localStorage.setItem("biome_profile", JSON.stringify({ name, email }));
-                toast.success("Profile updated.");
+                toast.success("Profile updated (UI only).");
                 setEditOpen(false);
               }}
             >
