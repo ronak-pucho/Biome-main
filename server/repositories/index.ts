@@ -1,6 +1,10 @@
 import { InMemoryClickRepo, InMemorySearchRepo, InMemoryUserRepo } from "./inMemory";
+import { MongoClickRepo, MongoSearchRepo, MongoUserRepo } from "./mongo";
+import { createPriceAlertsRepo } from "./priceAlerts";
 
-export const userRepo = new InMemoryUserRepo();
-export const searchRepo = new InMemorySearchRepo();
-export const clickRepo = new InMemoryClickRepo();
+const useMongo = Boolean(process.env.MONGODB_URI);
 
+export const userRepo = useMongo ? new MongoUserRepo() : new InMemoryUserRepo();
+export const searchRepo = useMongo ? new MongoSearchRepo() : new InMemorySearchRepo();
+export const clickRepo = useMongo ? new MongoClickRepo() : new InMemoryClickRepo();
+export const priceAlertsRepo = createPriceAlertsRepo();
