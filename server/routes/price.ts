@@ -30,12 +30,16 @@ router.post("/price-alerts", authOptional(), async (req: Request, res: Response)
   res.json(alert);
 });
 
-router.get("/price-alerts", async (_req: Request, res: Response) => {
-  res.json([]);
+router.get("/price-alerts", authOptional(), async (_req: Request, res: Response) => {
+  const userId = _req.ctx?.userId ?? "anon";
+  const alerts = await priceService.listActiveAlerts(userId);
+  res.json(alerts);
 });
 
-router.delete("/price-alerts/:alertId", async (_req: Request, res: Response) => {
-  res.json({ success: true });
+router.delete("/price-alerts/:alertId", authOptional(), async (_req: Request, res: Response) => {
+  const userId = _req.ctx?.userId ?? "anon";
+  const ok = await priceService.deactivateAlert(_req.params.alertId, userId);
+  res.json({ success: ok });
 });
 
 router.get("/price-history", async (req: Request, res: Response) => {
@@ -57,4 +61,3 @@ router.get("/price-history", async (req: Request, res: Response) => {
 });
 
 export default router;
-
