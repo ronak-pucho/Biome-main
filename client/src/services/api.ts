@@ -6,8 +6,8 @@ import axios, { AxiosInstance, AxiosError } from 'axios';
  */
 
 // API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://api.biome.local';
-const ONDC_PROTOCOL_BASE_URL = import.meta.env.VITE_ONDC_API_URL || API_BASE_URL;
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const ONDC_PROTOCOL_BASE_URL = import.meta.env.VITE_ONDC_API_URL || '/api/ondc';
 
 export const ONDC_ENDPOINTS = {
   search: '/search',
@@ -39,6 +39,7 @@ const apiClient: AxiosInstance = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,
 });
 
 const ondcClient: AxiosInstance = axios.create({
@@ -47,6 +48,7 @@ const ondcClient: AxiosInstance = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,
 });
 
 // Response interceptor for error handling
@@ -65,7 +67,7 @@ export const ecommerceAPI = {
   // Search products across platforms
   searchProducts: async (query: string, filters?: Record<string, any>) => {
     try {
-      const response = await apiClient.post('/ecommerce/search', {
+      const response = await apiClient.post('/search/shopping', {
         query,
         filters,
       });
@@ -117,12 +119,14 @@ export const ecommerceAPI = {
  */
 export const foodAPI = {
   // Search restaurants
-  searchRestaurants: async (location: string, cuisine?: string) => {
+  searchRestaurants: async (
+    query: string,
+    center: { lat: number; lng: number },
+    providers?: Array<'Swiggy' | 'Zomato' | 'Blinkit'>,
+    radiusKm?: number
+  ) => {
     try {
-      const response = await apiClient.post('/food/search', {
-        location,
-        cuisine,
-      });
+      const response = await apiClient.post('/food/search', { query, center, providers, radiusKm });
       return response.data;
     } catch (error) {
       console.error('Restaurant search failed:', error);
@@ -142,11 +146,11 @@ export const foodAPI = {
   },
 
   // Get delivery options
-  getDeliveryOptions: async (restaurantId: string, location: string) => {
+  getDeliveryOptions: async (restaurantId: string, center: { lat: number; lng: number }) => {
     try {
       const response = await apiClient.post('/food/delivery-options', {
         restaurantId,
-        location,
+        center,
       });
       return response.data;
     } catch (error) {
@@ -161,12 +165,14 @@ export const foodAPI = {
  */
 export const ridesAPI = {
   // Get fare estimates
-  getFareEstimate: async (pickup: string, dropoff: string, rideType?: string) => {
+  getFareEstimate: async (
+    pickup: { lat: number; lng: number },
+    dropoff: { lat: number; lng: number }
+  ) => {
     try {
       const response = await apiClient.post('/rides/fare-estimate', {
         pickup,
         dropoff,
-        rideType,
       });
       return response.data;
     } catch (error) {
@@ -176,10 +182,10 @@ export const ridesAPI = {
   },
 
   // Get available rides
-  getAvailableRides: async (location: string) => {
+  getAvailableRides: async (location: { lat: number; lng: number }) => {
     try {
       const response = await apiClient.get('/rides/available', {
-        params: { location },
+        params: { lat: location.lat, lng: location.lng },
       });
       return response.data;
     } catch (error) {
@@ -189,9 +195,9 @@ export const ridesAPI = {
   },
 
   // Book a ride
-  bookRide: async (rideData: Record<string, any>) => {
+  bookRide: async (quoteId: string) => {
     try {
-      const response = await apiClient.post('/rides/book', rideData);
+      const response = await apiClient.post('/rides/book', { quoteId });
       return response.data;
     } catch (error) {
       console.error('Ride booking failed:', error);
@@ -207,11 +213,8 @@ export const travelAPI = {
   // Search flights
   searchFlights: async (from: string, to: string, date: string, passengers?: number) => {
     try {
-      const response = await apiClient.post('/travel/flights/search', {
-        from,
-        to,
-        date,
-        passengers,
+      const response = await apiClient.post('/search/travel', {
+        query: `flight from ${from} to ${to} on ${date} for ${passengers ?? 1} passengers`,
       });
       return response.data;
     } catch (error) {
@@ -258,11 +261,8 @@ export const hospitalityAPI = {
   // Search hotels
   searchHotels: async (location: string, checkIn: string, checkOut: string, guests?: number) => {
     try {
-      const response = await apiClient.post('/hospitality/search', {
-        location,
-        checkIn,
-        checkOut,
-        guests,
+      const response = await apiClient.post('/search/stays', {
+        query: `hotel in ${location} from ${checkIn} to ${checkOut} for ${guests ?? 2} guests`,
       });
       return response.data;
     } catch (error) {
