@@ -3,6 +3,7 @@ import { createServer } from "http";
 import path from "path";
 import { fileURLToPath } from "url";
 import cookieParser from "cookie-parser";
+import cors from "cors";
 import type { Request, Response } from "express";
 import apiRouter from "./routes/api";
 import authRouter from "./routes/auth";
@@ -18,6 +19,20 @@ async function startServer() {
   const server = createServer(app);
   createSocketServer(server);
 
+  app.use(
+    cors({
+      origin: (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
+        const allowed = (process.env.CORS_ORIGIN || "http://localhost:3001")
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        if (!origin) return cb(null, true);
+        if (allowed.includes(origin)) return cb(null, true);
+        return cb(new Error("CORS_NOT_ALLOWED"), false);
+      },
+      credentials: true,
+    })
+  );
   app.use(express.json());
   app.use(cookieParser());
   app.use(attachRequestContext());
