@@ -34,8 +34,8 @@ export interface NotificationPreference {
 }
 
 class PriceTrackingService {
-  private apiUrl = process.env.VITE_API_URL || 'https://api.biome.local';
-  private wsUrl = process.env.VITE_WS_URL || 'wss://ws.biome.local';
+  private apiUrl = import.meta.env.VITE_API_URL || '/api';
+  private wsUrl = import.meta.env.VITE_WS_URL || 'wss://ws.biome.local';
   private ws: WebSocket | null = null;
   private priceAlerts: Map<string, PriceAlert> = new Map();
   private notificationListeners: Set<(alert: PriceAlert) => void> = new Set();
