@@ -63,5 +63,36 @@ router.get("/intents/:intentId", authOptional(), async (req: Request, res: Respo
   res.send(text);
 });
 
-export default router;
+router.post("/webhooks/cashfree", async (req: Request, res: Response) => {
+  const rawBody = req.rawBody ?? Buffer.from(JSON.stringify(req.body ?? {}));
 
+  const headers: Record<string, string> = {
+    "content-type": req.header("content-type") || "application/json",
+  };
+
+  const passthrough = [
+    "x-webhook-timestamp",
+    "x-webhook-signature",
+    "x-webhook-version",
+    "x-webhook-attempt",
+    "x-idempotency-key",
+  ];
+
+  for (const h of passthrough) {
+    const v = req.header(h);
+    if (v) headers[h] = v;
+  }
+
+  const r = await fetch(`${paymentsBaseUrl()}/v1/webhooks/cashfree`, {
+    method: "POST",
+    headers,
+    body: rawBody as any,
+  });
+
+  const text = await r.text();
+  res.status(r.status);
+  res.type(r.headers.get("content-type") || "application/json");
+  res.send(text);
+});
+
+export default router;
