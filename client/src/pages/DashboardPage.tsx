@@ -3,8 +3,98 @@ import { TrendingUp, Gift, Zap, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Header from '@/components/shared/Header';
 import Footer from '@/components/shared/Footer';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { useEffect, useMemo, useState } from 'react';
+import { paymentsAPI } from '@/services/api';
+import { toast } from 'sonner';
+
+declare global {
+  interface Window {
+    Cashfree?: any;
+  }
+}
 
 export default function DashboardPage() {
+  const [paymentsOpen, setPaymentsOpen] = useState(false);
+  const [payAmount, setPayAmount] = useState('1');
+  const [payPhone, setPayPhone] = useState('9999999999');
+  const [payEmail, setPayEmail] = useState('test@example.com');
+  const [isPaying, setIsPaying] = useState(false);
+  const [lastIntentId, setLastIntentId] = useState<string | null>(null);
+  const [lastStatus, setLastStatus] = useState<string | null>(null);
+
+  const returnUrl = useMemo(() => `${window.location.origin}/dashboard`, []);
+  const notifyUrl = useMemo(() => {
+    const configured = import.meta.env.VITE_API_URL as string | undefined;
+    const apiOrigin =
+      typeof configured === 'string' && configured.startsWith('http')
+        ? new URL(configured).origin
+        : window.location.origin;
+    return `${apiOrigin}/api/payments/webhooks/cashfree`;
+  }, []);
+
+  const loadCashfreeSdk = async () => {
+    if (window.Cashfree) return;
+    await new Promise<void>((resolve, reject) => {
+      const existing = document.querySelector('script[data-cashfree-sdk="true"]');
+      if (existing) {
+        existing.addEventListener('load', () => resolve());
+        existing.addEventListener('error', () => reject(new Error('CASHFREE_SDK_LOAD_FAILED')));
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
+      script.async = true;
+      script.dataset.cashfreeSdk = 'true';
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('CASHFREE_SDK_LOAD_FAILED'));
+      document.head.appendChild(script);
+    });
+  };
+
+  useEffect(() => {
+    const fromStorage = window.localStorage.getItem('lastPaymentIntentId');
+    if (fromStorage && !lastIntentId) setLastIntentId(fromStorage);
+    const qs = new URLSearchParams(window.location.search);
+    const orderId =
+      qs.get('order_id') || qs.get('orderId') || qs.get('cf_order_id') || qs.get('cashfree_order_id');
+    const txStatus =
+      qs.get('txStatus') || qs.get('tx_status') || qs.get('payment_status') || qs.get('status');
+    if (orderId || txStatus) {
+      toast.message('Returned from payment', {
+        description: [orderId ? `order_id=${orderId}` : null, txStatus ? `status=${txStatus}` : null]
+          .filter(Boolean)
+          .join(' • '),
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!lastIntentId) return;
+    window.localStorage.setItem('lastPaymentIntentId', lastIntentId);
+
+    let lastSeen: string | null = null;
+    const t = window.setInterval(async () => {
+      try {
+        const data = await paymentsAPI.getIntent(lastIntentId);
+        const status = data?.status || data?.intent?.status;
+        if (typeof status === 'string') {
+          setLastStatus(status);
+          if (status !== lastSeen && (status === 'PAID' || status === 'FAILED' || status === 'CANCELLED')) {
+            lastSeen = status;
+            if (status === 'PAID') toast.success('Payment successful.');
+            else toast.error(`Payment ${status.toLowerCase()}.`);
+          }
+          if (status === 'PAID' || status === 'FAILED' || status === 'CANCELLED') window.clearInterval(t);
+        }
+      } catch {
+        return;
+      }
+    }, 2500);
+    return () => window.clearInterval(t);
+  }, [lastIntentId]);
+
   const stats = [
     {
       icon: TrendingUp,
@@ -190,6 +280,13 @@ export default function DashboardPage() {
                 <Button variant="outline" className="w-full justify-start">
                   🔔 Price Alerts
                 </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={() => setPaymentsOpen(true)}
+                >
+                  💳 Test Cashfree Payment
+                </Button>
                 <Button variant="outline" className="w-full justify-start">
                   ❤️ Saved Deals
                 </Button>
@@ -224,6 +321,102 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      <Dialog open={paymentsOpen} onOpenChange={setPaymentsOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Cashfree payment (test)</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <Input
+              value={payAmount}
+              onChange={(e) => setPayAmount(e.target.value)}
+              placeholder="Amount (INR)"
+              inputMode="decimal"
+            />
+            <Input
+              value={payPhone}
+              onChange={(e) => setPayPhone(e.target.value)}
+              placeholder="Phone"
+              inputMode="tel"
+            />
+            <Input
+              value={payEmail}
+              onChange={(e) => setPayEmail(e.target.value)}
+              placeholder="Email"
+              inputMode="email"
+            />
+
+            {lastIntentId && (
+              <div className="text-sm text-muted-foreground">
+                Intent: <span className="font-mono">{lastIntentId}</span>
+                {lastStatus ? <> • Status: <span className="font-semibold">{lastStatus}</span></> : null}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setLastIntentId(null);
+                setLastStatus(null);
+                setPaymentsOpen(false);
+              }}
+            >
+              Close
+            </Button>
+            <Button
+              disabled={isPaying}
+              onClick={async () => {
+                const amt = Number(payAmount);
+                if (!Number.isFinite(amt) || amt <= 0) {
+                  toast.error('Enter a valid amount.');
+                  return;
+                }
+                setIsPaying(true);
+                try {
+                  const created = await paymentsAPI.createIntent({
+                    money: { amount: amt, currency: 'INR' },
+                    customer: {
+                      customerId: `user_${payPhone || 'anon'}`,
+                      customerPhone: payPhone,
+                      customerEmail: payEmail,
+                    },
+                    returnUrl,
+                    notifyUrl,
+                    idempotencyKey: `demo_${Date.now()}`,
+                  });
+
+                  const intent = created?.intent;
+                  const checkout = created?.checkout;
+                  if (!intent?.intentId || !checkout?.paymentSessionId) {
+                    throw new Error('PAYMENT_INTENT_CREATE_FAILED');
+                  }
+
+                  setLastIntentId(intent.intentId);
+                  setLastStatus(intent.status);
+                  window.localStorage.setItem('lastPaymentIntentId', intent.intentId);
+
+                  await loadCashfreeSdk();
+                  const cashfree = window.Cashfree?.({ mode: checkout?.env || 'sandbox' });
+                  await cashfree?.checkout({
+                    paymentSessionId: checkout.paymentSessionId,
+                    redirectTarget: '_modal',
+                  });
+                } catch {
+                  toast.error('Payment init failed.');
+                } finally {
+                  setIsPaying(false);
+                }
+              }}
+            >
+              {isPaying ? 'Starting…' : 'Pay with Cashfree'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Footer />
     </div>
