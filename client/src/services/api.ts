@@ -207,6 +207,40 @@ export const ridesAPI = {
 };
 
 /**
+ * Payments API Services
+ */
+export const paymentsAPI = {
+  createIntent: async (input: {
+    money: { amount: number; currency?: string };
+    customer: { customerId: string; customerPhone: string; customerEmail?: string; customerName?: string };
+    returnUrl?: string;
+    notifyUrl?: string;
+    orderId?: string;
+    idempotencyKey?: string;
+  }) => {
+    try {
+      const response = await apiClient.post('/payments/intents', input, {
+        headers: input.idempotencyKey ? { 'Idempotency-Key': input.idempotencyKey } : undefined,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Create payment intent failed:', error);
+      throw error;
+    }
+  },
+
+  getIntent: async (intentId: string) => {
+    try {
+      const response = await apiClient.get(`/payments/intents/${intentId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Fetch payment intent failed:', error);
+      throw error;
+    }
+  },
+};
+
+/**
  * Travel API Services
  */
 export const travelAPI = {
