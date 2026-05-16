@@ -16,6 +16,111 @@ function inr(amount: number): Money {
   return { currency: "INR", amount: Math.round(amount) };
 }
 
+function getRapidApiKey() {
+  return process.env.RAPIDAPI_KEY || process.env.RAPID_API_KEY || "";
+}
+
+function getRapidApiProviderConfig(provider: string) {
+  const key = provider.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
+  const host = process.env[`RAPIDAPI_${key}_HOST`] || "";
+  const url = process.env[`RAPIDAPI_${key}_SEARCH_URL`] || "";
+  return { host, url };
+}
+
+function pickString(v: unknown, keys: string[]): string | undefined {
+  if (!v || typeof v !== "object") return undefined;
+  const o = v as Record<string, unknown>;
+  for (const k of keys) {
+    const val = o[k];
+    if (typeof val === "string" && val.trim()) return val;
+  }
+  return undefined;
+}
+
+function pickNumber(v: unknown, keys: string[]): number | undefined {
+  if (!v || typeof v !== "object") return undefined;
+  const o = v as Record<string, unknown>;
+  for (const k of keys) {
+    const val = o[k];
+    if (typeof val === "number" && Number.isFinite(val)) return val;
+    if (typeof val === "string" && val.trim() && Number.isFinite(Number(val))) return Number(val);
+  }
+  return undefined;
+}
+
+function pickArray(v: unknown, keys: string[]): unknown[] | undefined {
+  if (!v || typeof v !== "object") return undefined;
+  const o = v as Record<string, unknown>;
+  for (const k of keys) {
+    const val = o[k];
+    if (Array.isArray(val)) return val;
+  }
+  return undefined;
+}
+
+async function rapidApiSearchEcommerce(input: { provider: string; query: string }): Promise<NormalizedItem[] | null> {
+  const apiKey = getRapidApiKey();
+  if (!apiKey) return null;
+  const cfg = getRapidApiProviderConfig(input.provider);
+  if (!cfg.host || !cfg.url) return null;
+
+  const u = new URL(cfg.url);
+  if (u.toString().includes("{query}")) {
+    const replaced = cfg.url.replaceAll("{query}", encodeURIComponent(input.query));
+    const ur = new URL(replaced);
+    const json = await fetch(ur.toString(), {
+      headers: { "x-rapidapi-key": apiKey, "x-rapidapi-host": cfg.host },
+    }).then(async (r) => {
+      if (!r.ok) throw new Error(`RAPIDAPI_${input.provider}_SEARCH_FAILED`);
+      return r.json() as Promise<unknown>;
+    });
+    return normalizeRapidApiEcomItems(json, input.provider, input.query);
+  }
+
+  if (!u.searchParams.has("query") && !u.searchParams.has("q")) u.searchParams.set("query", input.query);
+  const json = await fetch(u.toString(), {
+    headers: { "x-rapidapi-key": apiKey, "x-rapidapi-host": cfg.host },
+  }).then(async (r) => {
+    if (!r.ok) throw new Error(`RAPIDAPI_${input.provider}_SEARCH_FAILED`);
+    return r.json() as Promise<unknown>;
+  });
+  return normalizeRapidApiEcomItems(json, input.provider, input.query);
+}
+
+function normalizeRapidApiEcomItems(json: unknown, provider: string, query: string): NormalizedItem[] {
+  const arr =
+    (Array.isArray(json) ? json : undefined) ||
+    pickArray(json, ["products", "items", "data", "results", "result", "response"]);
+
+  if (!arr) return [];
+
+  const items: NormalizedItem[] = [];
+  for (const x of arr) {
+    const name = pickString(x, ["name", "title", "product_title", "productTitle"]) || query;
+    const url =
+      pickString(x, ["url", "link", "product_url", "productUrl", "product_link"]) || "https://example.com/checkout";
+    const amount =
+      pickNumber(x, ["final_price", "price", "sale_price", "salePrice", "offer_price", "offerPrice"]) ??
+      pickNumber(pickArray(x, ["offers"])?.[0], ["price"]) ??
+      guessBasePrice("ecommerce");
+    const rating = pickNumber(x, ["rating", "stars", "average_rating", "avg_rating"]);
+    const reviewsCount = pickNumber(x, ["reviews", "reviewsCount", "ratings_total", "ratingsTotal", "reviews_total"]);
+
+    items.push({
+      id: `${provider.toLowerCase()}_${nanoid(10)}`,
+      name,
+      provider,
+      domain: "ecommerce",
+      itemUrl: url,
+      rating: typeof rating === "number" ? Number(rating.toFixed(1)) : undefined,
+      reviewsCount: typeof reviewsCount === "number" ? Math.round(reviewsCount) : undefined,
+      finalPrice: { currency: "INR", amount: Math.round(amount) },
+    });
+  }
+
+  return items.slice(0, 12);
+}
+
 function guessBasePrice(domain: DomainType) {
   if (domain === "food") return 250;
   if (domain === "rides") return 180;
@@ -70,7 +175,17 @@ export class ProductService {
               : ["OYO", "Booking.com", "Airbnb"];
 
     const results = await Promise.all(
-      providers.map(async (provider) => ({ provider, items: mockItems(input.domain, provider, input.query) }))
+      providers.map(async (provider) => {
+        if (input.domain === "ecommerce") {
+          try {
+            const real = await rapidApiSearchEcommerce({ provider, query: input.query });
+            if (real && real.length) return { provider, items: real };
+          } catch {
+            return { provider, items: mockItems(input.domain, provider, input.query) };
+          }
+        }
+        return { provider, items: mockItems(input.domain, provider, input.query) };
+      })
     );
 
     return results;
@@ -93,4 +208,3 @@ export class ProductService {
 }
 
 export const productService = new ProductService();
-
