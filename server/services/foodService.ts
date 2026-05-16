@@ -25,6 +25,59 @@ export type FoodSearchResult = {
   results: RestaurantResult[];
 };
 
+function getRapidApiKey() {
+  return process.env.RAPIDAPI_KEY || process.env.RAPID_API_KEY || "";
+}
+
+function getRapidApiProviderConfig(provider: string) {
+  const key = provider.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
+  const host = process.env[`RAPIDAPI_${key}_HOST`] || "";
+  const url = process.env[`RAPIDAPI_${key}_SEARCH_URL`] || "";
+  return { host, url };
+}
+
+function pickString(v: unknown, keys: string[]): string | undefined {
+  if (!v || typeof v !== "object") return undefined;
+  const o = v as Record<string, unknown>;
+  for (const k of keys) {
+    const val = o[k];
+    if (typeof val === "string" && val.trim()) return val;
+  }
+  return undefined;
+}
+
+function pickNumber(v: unknown, keys: string[]): number | undefined {
+  if (!v || typeof v !== "object") return undefined;
+  const o = v as Record<string, unknown>;
+  for (const k of keys) {
+    const val = o[k];
+    if (typeof val === "number" && Number.isFinite(val)) return val;
+    if (typeof val === "string" && val.trim() && Number.isFinite(Number(val))) return Number(val);
+  }
+  return undefined;
+}
+
+function pickArray(v: unknown, keys: string[]): unknown[] | undefined {
+  if (!v || typeof v !== "object") return undefined;
+  const o = v as Record<string, unknown>;
+  for (const k of keys) {
+    const val = o[k];
+    if (Array.isArray(val)) return val;
+  }
+  return undefined;
+}
+
+function distanceKm(a: LatLng, b: LatLng) {
+  const toRad = (n: number) => (n * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const s1 = Math.sin(dLat / 2);
+  const s2 = Math.sin(dLng / 2);
+  const aa = s1 * s1 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * s2 * s2;
+  return 2 * R * Math.asin(Math.sqrt(aa));
+}
+
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
@@ -33,6 +86,73 @@ function jitterLocation(center: LatLng, km: number): LatLng {
   const dLat = (Math.random() - 0.5) * (km / 110);
   const dLng = (Math.random() - 0.5) * (km / 110);
   return { lat: center.lat + dLat, lng: center.lng + dLng };
+}
+
+async function rapidApiSearchRestaurants(input: {
+  provider: FoodProvider;
+  query: string;
+  center: LatLng;
+  radiusKm: number;
+}): Promise<RestaurantResult[] | null> {
+  const apiKey = getRapidApiKey();
+  if (!apiKey) return null;
+  const cfg = getRapidApiProviderConfig(input.provider);
+  if (!cfg.host || !cfg.url) return null;
+
+  const rawUrl = cfg.url.includes("{query}") ? cfg.url.replaceAll("{query}", encodeURIComponent(input.query)) : cfg.url;
+  const u = new URL(rawUrl);
+  if (!cfg.url.includes("{query}") && !u.searchParams.has("query") && !u.searchParams.has("q")) {
+    u.searchParams.set("query", input.query);
+  }
+  if (!u.searchParams.has("lat")) u.searchParams.set("lat", String(input.center.lat));
+  if (!u.searchParams.has("lng")) u.searchParams.set("lng", String(input.center.lng));
+  if (!u.searchParams.has("radius_km") && !u.searchParams.has("radiusKm")) u.searchParams.set("radius_km", String(input.radiusKm));
+
+  const json = await fetch(u.toString(), {
+    headers: { "x-rapidapi-key": apiKey, "x-rapidapi-host": cfg.host },
+  }).then(async (r) => {
+    if (!r.ok) throw new Error(`RAPIDAPI_${input.provider}_SEARCH_FAILED`);
+    return r.json() as Promise<unknown>;
+  });
+
+  const arr =
+    (Array.isArray(json) ? json : undefined) ||
+    pickArray(json, ["restaurants", "data", "items", "results", "result", "response"]);
+  if (!arr) return [];
+
+  const out: RestaurantResult[] = [];
+  for (const x of arr) {
+    const name = pickString(x, ["name", "restaurant_name", "title"]) || `${input.query} Kitchen`;
+    const cuisinesVal = pickString(x, ["cuisine", "cuisines", "category"]) || "Food";
+    const rating = clamp(pickNumber(x, ["rating", "stars", "avg_rating", "average_rating"]) ?? 4.2, 0, 5);
+    const reviews = Math.max(0, Math.round(pickNumber(x, ["reviews", "reviewsCount", "review_count", "ratings_total"]) ?? 0));
+    const eta = clamp(Math.round(pickNumber(x, ["delivery_time", "deliveryTimeMinutes", "deliveryTime", "eta_minutes", "eta"]) ?? 30), 5, 120);
+    const fee = Math.max(0, Math.round(pickNumber(x, ["delivery_fee", "deliveryFee", "fee"]) ?? (input.provider === "Blinkit" ? 0 : 20)));
+    const lat = pickNumber(x, ["lat", "latitude"]);
+    const lng = pickNumber(x, ["lng", "longitude", "lon"]);
+    const location =
+      typeof lat === "number" && typeof lng === "number" ? { lat, lng } : jitterLocation(input.center, input.radiusKm);
+    const dist = Number(distanceKm(input.center, location).toFixed(1));
+    const checkoutUrl = pickString(x, ["checkout_url", "checkoutUrl", "url", "link"]) || "https://example.com/checkout";
+    const offer = pickString(x, ["offer", "offerText", "promo", "promotion"]);
+
+    out.push({
+      id: `fd_${input.provider.toLowerCase()}_${nanoid(10)}`,
+      name,
+      cuisine: cuisinesVal,
+      rating: Number(rating.toFixed(1)),
+      reviews,
+      deliveryTimeMinutes: eta,
+      deliveryFee: fee,
+      provider: input.provider,
+      location,
+      distanceKm: dist,
+      checkoutUrl,
+      offer,
+    });
+  }
+
+  return out.slice(0, 18);
 }
 
 export class FoodService {
@@ -51,13 +171,18 @@ export class FoodService {
 
     const results: RestaurantResult[] = [];
     for (const provider of providers) {
+      try {
+        const real = await rapidApiSearchRestaurants({ provider, query: input.query, center: input.center, radiusKm });
+        if (real && real.length) {
+          results.push(...real);
+          continue;
+        }
+      } catch {
+      }
+
       for (let i = 0; i < 6; i++) {
         const distanceKm = Number((Math.random() * radiusKm).toFixed(1));
-        const deliveryTimeMinutes = clamp(
-          Math.round(12 + distanceKm * 6 + Math.random() * 12),
-          10,
-          60
-        );
+        const deliveryTimeMinutes = clamp(Math.round(12 + distanceKm * 6 + Math.random() * 12), 10, 60);
         const rating = Number((4.1 + Math.random() * 0.8).toFixed(1));
         const deliveryFee = provider === "Blinkit" ? 0 : Math.round(Math.random() * 40);
         const cuisine = cuisines[Math.floor(Math.random() * cuisines.length)];
@@ -107,4 +232,3 @@ export class FoodService {
 }
 
 export const foodService = new FoodService();
-
