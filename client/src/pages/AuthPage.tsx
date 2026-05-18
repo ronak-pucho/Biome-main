@@ -161,7 +161,14 @@ export default function AuthPage() {
             <Button
               type="button"
               className="w-full bg-white text-foreground border border-amber-100 hover:bg-amber-50"
-              onClick={() => (window.location.href = '/auth/google')}
+              onClick={() => {
+                const configured = import.meta.env.VITE_API_URL as string | undefined;
+                const apiOrigin =
+                  typeof configured === 'string' && configured.startsWith('http')
+                    ? new URL(configured).origin
+                    : '';
+                window.location.href = `${apiOrigin}/auth/google`;
+              }}
             >
               <span className="mr-2">🔵</span>
               Continue with Google
