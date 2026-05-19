@@ -1,13 +1,12 @@
-import { motion } from 'framer-motion';
 import { Clock, Star, MapPin, Crosshair, Navigation } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import Header from '@/components/shared/Header';
-import Footer from '@/components/shared/Footer';
 import { MapView } from '@/components/Map';
 import { useMemo, useRef, useState } from 'react';
 import { ridesAPI } from '@/services/api';
+import { useLocation } from 'wouter';
 
 export default function RidesPage() {
+  const [, setLocation] = useLocation();
   const mapRef = useRef<google.maps.Map | null>(null);
   const pickupMarkerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
   const dropMarkerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
@@ -78,98 +77,76 @@ export default function RidesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white via-yellow-50/30 to-white">
-      <Header />
-
-      {/* Hero */}
-      <section className="py-16 bg-gradient-to-r from-yellow-400 to-amber-400 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_50%,rgba(255,255,255,0.3),transparent)]" />
-        </div>
-
-        <div className="container relative z-10">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="max-w-2xl"
-          >
-            <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
-              🚗 Book Rides, Save Big
-            </h1>
-            <p className="text-xl text-white/90 mb-8">
-              Compare fares across Uber, Ola, Rapido, and ONDC in real-time
-            </p>
-            <div className="text-white/90 text-sm">
-              Click on the map to set pickup and drop. Then we fetch fare + ETA.
+    <div className="mobile-stage">
+      <div className="fit-shell">
+        <div className="phone-screen">
+          <section className="screen" style={{ paddingTop: 16, paddingBottom: 28 }}>
+            <div className="simple-topbar">
+              <button className="simple-topbar-button" type="button" onClick={() => setLocation('/home')} aria-label="Back">
+                ←
+              </button>
+              <h2 className="simple-topbar-title">Rides</h2>
+              <div className="simple-topbar-space" />
             </div>
-          </motion.div>
-        </div>
-      </section>
 
-      <section className="py-10 bg-white border-b border-yellow-100">
-        <div className="container">
-          <div className="flex flex-col lg:flex-row gap-8">
-            <div className="lg:w-1/3">
-              <h2 className="text-2xl font-bold mb-2">Trip</h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                1st click = pickup, 2nd click = dropoff. Click again to reset.
-              </p>
+            <div className="mt-4 rounded-2xl border border-amber-100 bg-white/90 p-4 text-sm text-muted-foreground">
+              Tap map once for pickup, second time for drop. Tap again to reset.
+            </div>
 
-              <div className="flex gap-2 mb-4">
-                <Button
-                  variant="outline"
-                  className="gap-2"
-                  onClick={() => {
-                    navigator.geolocation?.getCurrentPosition(
-                      (pos) => {
-                        const next = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-                        setPickup(next);
-                        updateMarker('pickup', next);
-                        mapRef.current?.setCenter(next);
-                      },
-                      () => {
-                        return;
-                      }
-                    );
-                  }}
-                >
-                  <Crosshair className="w-4 h-4" />
-                  Set pickup to me
-                </Button>
-                <Button
-                  variant="outline"
-                  className="gap-2"
-                  onClick={() => {
-                    setPickup(null);
-                    setDropoff(null);
-                    setQuotes([]);
-                    if (pickupMarkerRef.current) pickupMarkerRef.current.map = null;
-                    if (dropMarkerRef.current) dropMarkerRef.current.map = null;
-                    if (directionsRendererRef.current) directionsRendererRef.current.setMap(null);
-                    directionsRendererRef.current = null;
-                  }}
-                >
-                  Reset
-                </Button>
+            <div className="mt-4 flex gap-2">
+              <Button
+                variant="outline"
+                className="gap-2 flex-1"
+                onClick={() => {
+                  navigator.geolocation?.getCurrentPosition(
+                    (pos) => {
+                      const next = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                      setPickup(next);
+                      updateMarker('pickup', next);
+                      mapRef.current?.setCenter(next);
+                    },
+                    () => {
+                      return;
+                    }
+                  );
+                }}
+              >
+                <Crosshair className="w-4 h-4" />
+                Pickup = me
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => {
+                  setPickup(null);
+                  setDropoff(null);
+                  setQuotes([]);
+                  if (pickupMarkerRef.current) pickupMarkerRef.current.map = null;
+                  if (dropMarkerRef.current) dropMarkerRef.current.map = null;
+                  if (directionsRendererRef.current) directionsRendererRef.current.setMap(null);
+                  directionsRendererRef.current = null;
+                }}
+              >
+                Reset
+              </Button>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-amber-100 bg-white/90 p-4 text-sm space-y-2">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <MapPin className="w-4 h-4" />
+                <span>Pickup: {pickup ? `${pickup.lat.toFixed(5)}, ${pickup.lng.toFixed(5)}` : 'not set'}</span>
               </div>
-
-              <div className="rounded-xl border border-yellow-100 bg-yellow-50/30 p-4 text-sm space-y-2">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <MapPin className="w-4 h-4" />
-                  <span>Pickup: {pickup ? `${pickup.lat.toFixed(5)}, ${pickup.lng.toFixed(5)}` : 'not set'}</span>
-                </div>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Navigation className="w-4 h-4" />
-                  <span>Drop: {dropoff ? `${dropoff.lat.toFixed(5)}, ${dropoff.lng.toFixed(5)}` : 'not set'}</span>
-                </div>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Navigation className="w-4 h-4" />
+                <span>Drop: {dropoff ? `${dropoff.lat.toFixed(5)}, ${dropoff.lng.toFixed(5)}` : 'not set'}</span>
               </div>
             </div>
 
-            <div className="lg:w-2/3">
+            <div className="mt-4">
               <MapView
                 initialCenter={initialCenter}
                 initialZoom={13}
-                className="h-[420px] rounded-2xl overflow-hidden border border-yellow-100"
+                className="h-[320px] lg:h-[520px] rounded-2xl overflow-hidden border border-amber-100"
                 onMapReady={(map) => {
                   mapRef.current = map;
                   map.addListener('click', async (e: google.maps.MapMouseEvent) => {
@@ -195,124 +172,48 @@ export default function RidesPage() {
                 }}
               />
             </div>
-          </div>
-        </div>
-      </section>
 
-      {/* Features */}
-      <section className="py-12 bg-white">
-        <div className="container">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[
-              {
-                icon: '⚡',
-                title: 'Instant Comparison',
-                description: 'Compare fares from all platforms instantly',
-              },
-              {
-                icon: '📉',
-                title: 'Surge Prediction',
-                description: 'Get notified about surge pricing patterns',
-              },
-              {
-                icon: '⭐',
-                title: 'Driver Ratings',
-                description: 'Choose based on ratings and reviews',
-              },
-            ].map((feature, idx) => (
-              <motion.div
-                key={idx}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.1 }}
-                className="p-6 rounded-xl bg-yellow-50 border border-yellow-100 text-center"
-              >
-                <div className="text-4xl mb-4">{feature.icon}</div>
-                <h3 className="font-bold mb-2">{feature.title}</h3>
-                <p className="text-sm text-muted-foreground">{feature.description}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
+            <div className="mt-6">
+              <div className="text-xl font-bold text-foreground">Fare comparison</div>
+              <div className="text-sm text-muted-foreground mt-1">{isLoading ? 'Fetching quotes…' : 'Sorted by lowest fare.'}</div>
 
-      {/* Rides */}
-      <section className="py-12">
-        <div className="container">
-          <h2 className="text-3xl font-bold mb-2">Fare comparison</h2>
-          <p className="text-sm text-muted-foreground mb-8">
-            {isLoading ? 'Fetching quotes…' : 'Sorted by lowest fare.'}
-          </p>
+              {!isLoading && pickup && dropoff && quotes.length === 0 && (
+                <div className="py-10 text-center text-muted-foreground">No quotes returned.</div>
+              )}
 
-          {!isLoading && pickup && dropoff && quotes.length === 0 && (
-            <div className="py-10 text-center text-muted-foreground">No quotes returned.</div>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {quotes.map((ride, idx) => (
-              <motion.div
-                key={ride.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.1 }}
-                className="rounded-xl border border-yellow-100 overflow-hidden hover:shadow-lg transition-all duration-300 bg-white"
-              >
-                <div className="bg-gradient-to-br from-yellow-50 to-amber-50 p-8 text-center relative">
-                  <div className="text-6xl mb-4">🚕</div>
-                  {ride.surgeMultiplier && (
-                    <div className="absolute top-4 right-4 bg-red-500 text-white px-3 py-1 rounded-full text-sm font-bold">
-                      Surge x{ride.surgeMultiplier}
+              <div className="mt-4 space-y-3">
+                {quotes.map((ride) => (
+                  <div key={ride.id} className="rounded-2xl border border-amber-100 bg-white/95 p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-bold text-foreground truncate">{ride.type.toUpperCase()}</div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {ride.provider} • {ride.distanceKm} km
+                          {ride.surgeMultiplier ? ` • Surge x${ride.surgeMultiplier}` : ''}
+                        </div>
+                      </div>
+                      <div className="flex-none text-lg font-extrabold text-foreground">₹{ride.fare.toLocaleString()}</div>
                     </div>
-                  )}
-                </div>
 
-                <div className="p-6">
-                  <h3 className="font-bold text-lg mb-1">{ride.type.toUpperCase()}</h3>
-                  <p className="text-sm text-muted-foreground mb-4">{ride.provider} • {ride.distanceKm} km</p>
-
-                  <div className="space-y-3 mb-6">
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground flex items-center gap-2">
-                        <Clock className="w-4 h-4" />
-                        ETA
+                    <div className="mt-3 flex items-center justify-between text-sm text-muted-foreground">
+                      <span className="inline-flex items-center gap-1">
+                        <Clock className="w-4 h-4" /> {ride.etaMinutes}m
                       </span>
-                      <span className="font-semibold">{ride.etaMinutes} min</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground flex items-center gap-2">
-                        <Star className="w-4 h-4" />
-                        Rating
+                      <span className="inline-flex items-center gap-1">
+                        <Star className="w-4 h-4" /> {ride.driverRating.toFixed(1)}
                       </span>
-                      <span className="font-semibold">{ride.driverRating.toFixed(1)}</span>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Platform</span>
-                      <span className="font-semibold">{ride.provider}</span>
-                    </div>
-                  </div>
 
-                  <div className="mb-4 p-3 bg-yellow-50 rounded-lg text-center">
-                    <p className="text-2xl font-bold text-yellow-600">
-                      ₹{ride.fare.toLocaleString()}
-                    </p>
+                    <Button className="mt-4 w-full" onClick={() => window.open(ride.deeplinkUrl, '_blank')}>
+                      Book
+                    </Button>
                   </div>
-
-                  <Button
-                    className="w-full bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-600 hover:to-amber-600 text-white"
-                    onClick={() => window.open(ride.deeplinkUrl, '_blank')}
-                  >
-                    Book Ride
-                  </Button>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+                ))}
+              </div>
+            </div>
+          </section>
         </div>
-      </section>
-
-      <Footer />
+      </div>
     </div>
   );
 }
