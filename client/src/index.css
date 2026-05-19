@@ -222,3 +222,135 @@
     @apply rounded-lg font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2;
   }
 }
+
+.mobile-stage {
+  width: 100%;
+  min-height: 100dvh;
+  padding: 0;
+  overflow-x: clip;
+}
+
+.fit-shell {
+  width: 100%;
+  min-height: 100dvh;
+  margin-inline: auto;
+}
+
+.phone-screen {
+  width: 100%;
+  min-height: 100dvh;
+  background: linear-gradient(180deg, #fffbf7 0%, #fdf6ef 100%);
+  position: relative;
+  overflow-x: clip;
+}
+
+.screen {
+  width: min(100%, 580px);
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding-inline: clamp(20px, 4vw, 32px);
+}
+
+.onboarding-screen {
+  width: min(100%, 760px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding-top: clamp(88px, 12vh, 124px);
+  padding-bottom: 32px;
+}
+
+.hero-logo {
+  color: #070707;
+  filter: drop-shadow(0 6px 10px rgba(255, 122, 0, 0.14));
+}
+
+.hero-copy {
+  margin-top: clamp(44px, 8vh, 62px);
+}
+
+.hero-title {
+  margin: 0;
+  display: grid;
+  gap: 2px;
+  font-size: clamp(34px, 5vw, 64px);
+  line-height: 1.15;
+  letter-spacing: -0.04em;
+  font-weight: 800;
+  color: #3f1704;
+}
+
+.hero-title-accent {
+  color: #ff6f00;
+}
+
+.hero-description {
+  margin: 32px auto 0;
+  max-width: 640px;
+  color: #73584a;
+  font-size: clamp(16px, 2vw, 18px);
+  line-height: 1.6;
+  font-weight: 500;
+}
+
+.hero-description-bottom {
+  margin-top: 34px;
+}
+
+.hero-actions {
+  width: 100%;
+  margin-top: auto;
+  display: grid;
+  gap: 18px;
+  padding-top: 34px;
+}
+
+.button {
+  width: 100%;
+  min-height: 72px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 20px;
+  font-weight: 800;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.button:hover {
+  transform: translateY(-1px);
+}
+
+.primary-button {
+  color: #fff;
+  background: linear-gradient(180deg, #ff840f 0%, #ef6900 100%);
+  box-shadow:
+    0 16px 28px rgba(255, 119, 0, 0.23),
+    inset 0 -2px 0 rgba(132, 50, 0, 0.18);
+}
+
+.secondary-button {
+  color: #482618;
+  background: linear-gradient(180deg, #fdf1e4 0%, #f9eddc 100%);
+  border: 1px solid #e9d6c2;
+  box-shadow: 0 8px 20px rgba(150, 110, 79, 0.1);
+}
+
+.bottom-note {
+  margin: 64px 0 22px;
+  color: #26211b;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.auth-screen {
+  width: 100%;
+  max-width: none;
+  position: relative;
+  padding-top: 26px;
+  padding-bottom: 34px;
+}
