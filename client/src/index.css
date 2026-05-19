@@ -715,30 +715,29 @@
 
 @media (min-width: 1024px) {
   .fit-shell {
-    max-width: 1280px;
-    padding: 24px;
+    max-width: none;
+    padding: 0;
   }
 
   .phone-screen {
-    min-height: calc(100vh - 48px);
-    border-radius: 24px;
-    box-shadow: 0 24px 60px rgba(77, 48, 28, 0.18);
-    overflow: hidden;
+    min-height: 100dvh;
+    border-radius: 0;
+    box-shadow: none;
   }
 
   .screen {
     width: 100%;
-    min-height: calc(100vh - 48px);
-    padding-inline: 40px;
+    min-height: 100dvh;
+    padding-inline: clamp(24px, 4vw, 72px);
   }
 
   .home-screen {
     width: 100%;
     display: grid;
-    grid-template-columns: 320px 1fr;
-    gap: 24px;
-    padding-top: 24px;
-    padding-bottom: 24px;
+    grid-template-columns: 360px 1fr;
+    gap: 32px;
+    padding-top: 28px;
+    padding-bottom: 28px;
   }
 
   .home-header {
@@ -762,6 +761,7 @@
 
   .home-prompt-wrap {
     margin-top: 28px;
+    width: min(100%, 860px);
   }
 
   .home-sidebar-overlay {
@@ -770,9 +770,9 @@
 
   .home-sidebar {
     position: sticky;
-    top: 24px;
+    top: 28px;
     inset: auto;
-    width: 320px;
+    width: 360px;
     border-radius: 24px;
     box-shadow: 0 12px 40px rgba(77, 48, 28, 0.16);
     animation: none;
