@@ -4,10 +4,11 @@ import { Button } from '@/components/ui/button';
 import Header from '@/components/shared/Header';
 import Footer from '@/components/shared/Footer';
 import AISearchInput from '@/components/ai/AISearchInput';
-import apiClient, { ecommerceAPI } from '@/services/api';
+import apiClient, { ecommerceAPI, ordersAPI } from '@/services/api';
 import type { BackendSearchResult } from '@/types';
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { toast } from 'sonner';
 
 export default function EcommercePage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -174,7 +175,23 @@ export default function EcommercePage() {
                   <div className="grid grid-cols-2 gap-3">
                     <Button
                       className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white"
-                      onClick={() => window.open(product.itemUrl, '_blank')}
+                      onClick={async () => {
+                        try {
+                          await ordersAPI.createOrder({
+                            domain: 'ecommerce',
+                            provider: product.provider,
+                            title: product.name,
+                            itemUrl: product.itemUrl,
+                            amount: { currency: 'INR', amount: Math.max(1, Math.round(product.finalPrice.amount)) },
+                            metadata: { productId: product.id },
+                          });
+                          toast.success('Added to orders.');
+                        } catch {
+                          toast.message('Checkout link opened.', { description: 'Log in to save orders.' });
+                        } finally {
+                          window.open(product.itemUrl, '_blank');
+                        }
+                      }}
                     >
                       <ShoppingCart className="w-4 h-4 mr-2" />
                       Checkout

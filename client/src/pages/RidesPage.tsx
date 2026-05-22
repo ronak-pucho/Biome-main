@@ -2,8 +2,9 @@ import { Clock, Star, MapPin, Crosshair, Navigation } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MapView } from '@/components/Map';
 import { useMemo, useRef, useState } from 'react';
-import { ridesAPI } from '@/services/api';
+import { ordersAPI, ridesAPI } from '@/services/api';
 import { useLocation } from 'wouter';
+import { toast } from 'sonner';
 
 export default function RidesPage() {
   const [, setLocation] = useLocation();
@@ -204,7 +205,33 @@ export default function RidesPage() {
                       </span>
                     </div>
 
-                    <Button className="mt-4 w-full" onClick={() => window.open(ride.deeplinkUrl, '_blank')}>
+                    <Button
+                      className="mt-4 w-full"
+                      onClick={async () => {
+                        try {
+                          await ordersAPI.createOrder({
+                            domain: 'rides',
+                            provider: ride.provider,
+                            title: `${ride.provider} ${ride.type.toUpperCase()} ride`,
+                            itemUrl: ride.deeplinkUrl,
+                            amount: { currency: 'INR', amount: Math.max(1, Math.round(ride.fare)) },
+                            metadata: {
+                              quoteId: ride.id,
+                              pickup,
+                              dropoff,
+                              etaMinutes: ride.etaMinutes,
+                              distanceKm: ride.distanceKm,
+                              surgeMultiplier: ride.surgeMultiplier,
+                            },
+                          });
+                          toast.success('Ride saved to orders.');
+                        } catch {
+                          toast.message('Booking link opened.', { description: 'Log in to save orders.' });
+                        } finally {
+                          window.open(ride.deeplinkUrl, '_blank');
+                        }
+                      }}
+                    >
                       Book
                     </Button>
                   </div>
