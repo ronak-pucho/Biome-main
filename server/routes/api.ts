@@ -13,6 +13,7 @@ import foodRouter from "./food";
 import ecommerceRouter from "./ecommerce";
 import ridesRouter from "./rides";
 import paymentsRouter from "./payments";
+import ordersRouter from "./orders";
 import { authRequired } from "../middleware/auth";
 import { clickRepo, searchRepo } from "../repositories";
 import { searchEngine } from "../services/searchEngine";
@@ -32,6 +33,7 @@ router.use("/food", foodRouter);
 router.use("/ecommerce", ecommerceRouter);
 router.use("/rides", ridesRouter);
 router.use("/payments", paymentsRouter);
+router.use("/orders", ordersRouter);
 
 router.get("/history", authRequired(), async (req: Request, res: Response) => {
   const limit = z.coerce.number().int().min(1).max(100).optional().safeParse(req.query.limit);
