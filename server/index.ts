@@ -46,6 +46,19 @@ async function startServer() {
   app.use("/auth", authRouter);
   app.use("/api", apiRouter);
 
+  app.use((err: unknown, req: Request, res: Response, _next: (err?: unknown) => void) => {
+    const message = err instanceof Error ? err.message : "INTERNAL_ERROR";
+    const statusCode =
+      message === "CORS_NOT_ALLOWED" ? 403 : message.startsWith("INVALID_") ? 400 : 500;
+
+    if (req.path.startsWith("/api") || req.path.startsWith("/auth")) {
+      res.status(statusCode).json({ error: message });
+      return;
+    }
+
+    res.status(statusCode).type("text/plain").send("Error");
+  });
+
   // Serve static files from dist/public in production
   const staticPath =
     process.env.NODE_ENV === "production"
