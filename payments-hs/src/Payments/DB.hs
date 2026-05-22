@@ -11,12 +11,14 @@ module Payments.DB
     listOpenIntents,
     updateIntentStatus,
     insertWebhookEvent,
+    listPaymentEventsForUser,
   )
 where
 
 import Control.Exception (bracket)
-import Data.Aeson (Value, encode)
+import Data.Aeson (Value (..), decodeStrict, encode)
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.ByteString as BS
 import Data.Text (Text)
 import qualified Data.Text.Encoding as TE
 import Database.SQLite.Simple
@@ -112,15 +114,30 @@ insertWebhookEvent db eventId orderIdV eventType sigOk payload createdAtIso = do
     "INSERT OR IGNORE INTO payment_events(event_id,order_id,event_type,signature_ok,payload_json,created_at) VALUES (?,?,?,?,?,?)"
     (eventId, orderIdV, eventType, sigVal, payloadStr, createdAtIso)
 
+listPaymentEventsForUser :: Db -> Text -> Maybe Text -> Int -> IO [PaymentEvent]
+listPaymentEventsForUser db userIdV orderIdFilter limitN = do
+  rows <-
+    query
+      (conn db)
+      "SELECT e.event_id,e.order_id,e.event_type,e.signature_ok,e.payload_json,e.created_at FROM payment_events e JOIN payment_intents i ON i.order_id = e.order_id WHERE i.user_id = ? AND (? IS NULL OR e.order_id = ?) ORDER BY e.created_at DESC LIMIT ?"
+      (userIdV, orderIdFilter, orderIdFilter, limitN) ::
+      IO [PaymentEventRow]
+  pure (map fromRowEvent rows)
+
 data IntentRow = IntentRow Text (Maybe Text) Text Text Double Text Text Text Text
 
 data Only2 = Only2 Text Text
+
+data PaymentEventRow = PaymentEventRow Text Text Text Int Text Text
 
 instance FromRow Only2 where
   fromRow = Only2 <$> field <*> field
 
 instance FromRow IntentRow where
   fromRow = IntentRow <$> field <*> field <*> field <*> field <*> field <*> field <*> field <*> field <*> field
+
+instance FromRow PaymentEventRow where
+  fromRow = PaymentEventRow <$> field <*> field <*> field <*> field <*> field <*> field
 
 fromRowIntent :: IntentRow -> PaymentIntent
 fromRowIntent (IntentRow iid uid oid ps amt cur st ca ua) =
@@ -134,6 +151,23 @@ fromRowIntent (IntentRow iid uid oid ps amt cur st ca ua) =
       updatedAt = ua,
       money_ = Money {amount = amt, currency = cur}
     }
+
+fromRowEvent :: PaymentEventRow -> PaymentEvent
+fromRowEvent (PaymentEventRow eid oid et sig payloadStr ca) =
+  let sigOk = sig == 1
+      payloadBytes :: BS.ByteString
+      payloadBytes = TE.encodeUtf8 payloadStr
+      payloadV = case decodeStrict payloadBytes :: Maybe Value of
+        Just v -> v
+        Nothing -> String payloadStr
+   in PaymentEvent
+        { eventId = eid,
+          orderId = oid,
+          eventType = et,
+          signatureOk = sigOk,
+          payload = payloadV,
+          createdAt = ca
+        }
 
 parseStatus :: Text -> IntentStatus
 parseStatus "CREATED" = Created

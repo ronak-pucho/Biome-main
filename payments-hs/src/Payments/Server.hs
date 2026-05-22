@@ -118,6 +118,22 @@ routes = do
         json (object ["error" .= ("NOT_FOUND" :: Text)])
       Just intentV -> json intentV
 
+  get "/v1/payment_events" $ do
+    waiReq <- request
+    let hdrs = requestHeaders waiReq
+        userIdH = headerText (CI.mk "x-user-id") hdrs
+    env <- lift ask
+    case userIdH of
+      Nothing -> do
+        status status401
+        json (object ["error" .= ("UNAUTHORIZED" :: Text)])
+      Just uid -> do
+        orderIdV <- (Just <$> param "orderId") `rescue` (\_ -> pure Nothing)
+        limitV <- (param "limit") `rescue` (\_ -> pure (50 :: Int))
+        let clamped = max 1 (min 200 limitV)
+        items <- liftIO $ listPaymentEventsForUser (envDb env) uid orderIdV clamped
+        json (object ["items" .= items])
+
   post "/v1/webhooks/cashfree" $ do
     hdrs <- requestHeaders <$> request
     rawBody <- body
@@ -125,27 +141,31 @@ routes = do
     let cfg = envCfg env
         db = envDb env
         sigOk = verifyCashfreeSignature (LBS.toStrict rawBody) hdrs (cashfreeClientSecret cfg)
+        decoded = eitherDecode rawBody :: Either String CashfreeWebhookEvent
+    now <- liftIO nowIso
+    let (ordId, evtType) =
+          case decoded of
+            Right evt -> (whOrderId (whOrder evt), whType evt)
+            Left _ -> ("unknown" :: Text, "unknown" :: Text)
+        eventId = "evt_" <> ordId <> "_" <> now
+    liftIO $ insertWebhookEvent db eventId ordId evtType sigOk (decodeJson rawBody) now
     if not sigOk
       then do
         status status401
         json (object ["error" .= ("INVALID_SIGNATURE" :: Text)])
-      else case (eitherDecode rawBody :: Either String CashfreeWebhookEvent) of
+      else case decoded of
         Left _ -> do
           status status400
           json (object ["error" .= ("INVALID_JSON" :: Text)])
         Right evt -> do
-          now <- liftIO nowIso
-          let ordId = whOrderId (whOrder evt)
-              paymentStatus = whPaymentStatus (whPayment evt)
+          let paymentStatus = whPaymentStatus (whPayment evt)
               intentStatus =
                 case paymentStatus of
                   "SUCCESS" -> Paid
                   "FAILED" -> Failed
                   "USER_DROPPED" -> Cancelled
                   _ -> Active
-              eventId = "evt_" <> ordId <> "_" <> now
-          liftIO $ insertWebhookEvent db eventId ordId (whType evt) True (decodeJson rawBody) now
-          liftIO $ updateIntentStatus db ordId intentStatus now
+          liftIO $ updateIntentStatus db (whOrderId (whOrder evt)) intentStatus now
           status status200
           json (object ["ok" .= True])
 

@@ -7,6 +7,7 @@ module Payments.Types
     CreateIntentReq (..),
     CreateIntentRes (..),
     PaymentIntent (..),
+    PaymentEvent (..),
     IntentStatus (..),
     CashfreeCreateOrderReq (..),
     CashfreeCustomer (..),
@@ -97,6 +98,27 @@ instance ToJSON PaymentIntent where
         "createdAt" .= createdAt p,
         "updatedAt" .= updatedAt p,
         "money" .= money_ p
+      ]
+
+data PaymentEvent = PaymentEvent
+  { eventId :: Text,
+    orderId :: Text,
+    eventType :: Text,
+    signatureOk :: Bool,
+    payload :: Value,
+    createdAt :: Text
+  }
+  deriving (Eq, Show, Generic)
+
+instance ToJSON PaymentEvent where
+  toJSON e =
+    object
+      [ "eventId" .= eventId e,
+        "orderId" .= orderId e,
+        "eventType" .= eventType e,
+        "signatureOk" .= signatureOk e,
+        "payload" .= payload e,
+        "createdAt" .= createdAt e
       ]
 
 data CreateIntentRes = CreateIntentRes
@@ -196,4 +218,3 @@ instance FromJSON CashfreeWebhookEvent where
     ord <- d .: "order"
     pay <- d .: "payment"
     CashfreeWebhookEvent t <$> parseJSON ord <*> parseJSON pay
-
