@@ -1,4 +1,3 @@
-import { nanoid } from "nanoid";
 import type { DomainType, Money, SearchIntent, SearchResult } from "../entities";
 import { aiService } from "./aiService";
 import { TTLCache } from "./cache";
@@ -94,8 +93,7 @@ export class SearchEngine {
           return payload;
         })();
 
-    const searchId = `s_${nanoid(14)}`;
-    await searchRepo.create({
+    const created = await searchRepo.create({
       userId: input.userId,
       query: input.query,
       domain,
@@ -106,7 +104,7 @@ export class SearchEngine {
     });
 
     return {
-      searchId,
+      searchId: created.id,
       ...base,
       generatedAt: new Date().toISOString(),
       cache: { hit: cacheHit, key: cacheKey },
@@ -133,4 +131,3 @@ export class SearchEngine {
 }
 
 export const searchEngine = new SearchEngine();
-
