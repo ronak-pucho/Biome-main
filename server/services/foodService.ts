@@ -33,7 +33,20 @@ function getRapidApiProviderConfig(provider: string) {
   const key = provider.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
   const host = process.env[`RAPIDAPI_${key}_HOST`] || "";
   const url = process.env[`RAPIDAPI_${key}_SEARCH_URL`] || "";
-  return { host, url };
+  const menuUrl = process.env[`RAPIDAPI_${key}_MENU_URL`] || "";
+  return { host, url, menuUrl };
+}
+
+async function fetchJsonWithTimeout(url: string, headers: Record<string, string>, timeoutMs = 8000): Promise<unknown> {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const r = await fetch(url, { headers, signal: controller.signal });
+    if (!r.ok) throw new Error(`HTTP_${r.status}`);
+    return (await r.json()) as unknown;
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 function pickString(v: unknown, keys: string[]): string | undefined {
@@ -108,12 +121,7 @@ async function rapidApiSearchRestaurants(input: {
   if (!u.searchParams.has("lng")) u.searchParams.set("lng", String(input.center.lng));
   if (!u.searchParams.has("radius_km") && !u.searchParams.has("radiusKm")) u.searchParams.set("radius_km", String(input.radiusKm));
 
-  const json = await fetch(u.toString(), {
-    headers: { "x-rapidapi-key": apiKey, "x-rapidapi-host": cfg.host },
-  }).then(async (r) => {
-    if (!r.ok) throw new Error(`RAPIDAPI_${input.provider}_SEARCH_FAILED`);
-    return r.json() as Promise<unknown>;
-  });
+  const json = await fetchJsonWithTimeout(u.toString(), { "x-rapidapi-key": apiKey, "x-rapidapi-host": cfg.host });
 
   const arr =
     (Array.isArray(json) ? json : undefined) ||
@@ -136,8 +144,11 @@ async function rapidApiSearchRestaurants(input: {
     const checkoutUrl = pickString(x, ["checkout_url", "checkoutUrl", "url", "link"]) || "https://example.com/checkout";
     const offer = pickString(x, ["offer", "offerText", "promo", "promotion"]);
 
+    const externalId =
+      pickString(x, ["id", "restaurant_id", "restaurantId", "res_id", "store_id", "storeId"]) || nanoid(10);
+
     out.push({
-      id: `fd_${input.provider.toLowerCase()}_${nanoid(10)}`,
+      id: `fd_${input.provider.toLowerCase()}_${externalId}`,
       name,
       cuisine: cuisinesVal,
       rating: Number(rating.toFixed(1)),
@@ -209,6 +220,48 @@ export class FoodService {
   }
 
   async getMenu(restaurantId: string) {
+    const parts = restaurantId.split("_");
+    const providerLower = parts.length >= 3 && parts[0] === "fd" ? parts[1] : null;
+    const externalId = parts.length >= 3 && parts[0] === "fd" ? parts.slice(2).join("_") : null;
+
+    const provider: FoodProvider | null =
+      providerLower === "swiggy" ? "Swiggy" : providerLower === "zomato" ? "Zomato" : providerLower === "blinkit" ? "Blinkit" : null;
+
+    if (provider && externalId) {
+      const apiKey = getRapidApiKey();
+      const cfg = getRapidApiProviderConfig(provider);
+      if (apiKey && cfg.host && cfg.menuUrl) {
+        try {
+          const rawUrl = cfg.menuUrl
+            .replaceAll("{restaurant_id}", encodeURIComponent(externalId))
+            .replaceAll("{id}", encodeURIComponent(externalId));
+          const u = new URL(rawUrl);
+          if (!cfg.menuUrl.includes("{restaurant_id}") && !cfg.menuUrl.includes("{id}")) {
+            if (!u.searchParams.has("restaurant_id") && !u.searchParams.has("id")) u.searchParams.set("restaurant_id", externalId);
+          }
+          const json = await fetchJsonWithTimeout(u.toString(), { "x-rapidapi-key": apiKey, "x-rapidapi-host": cfg.host });
+          const arr =
+            (Array.isArray(json) ? json : undefined) ||
+            pickArray(json, ["menu", "items", "data", "results", "result", "response"]);
+          if (arr) {
+            const items = arr
+              .map((x) => {
+                const id = pickString(x, ["id", "item_id", "itemId"]) || `m_${nanoid(8)}`;
+                const name = pickString(x, ["name", "title", "item_name", "itemName"]);
+                const price = pickNumber(x, ["price", "amount", "final_price", "selling_price"]);
+                if (!name || typeof price !== "number") return null;
+                return { id: String(id), name, price: Math.round(price) };
+              })
+              .filter((x): x is { id: string; name: string; price: number } => Boolean(x))
+              .slice(0, 50);
+
+            if (items.length) return { restaurantId, items };
+          }
+        } catch {
+        }
+      }
+    }
+
     return {
       restaurantId,
       items: [
