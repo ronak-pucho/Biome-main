@@ -1,7 +1,7 @@
-import { Clock, MapPin, Star, Crosshair, Store } from 'lucide-react';
+import { Bell, Clock, Crosshair, House, MapPin, Menu, Mic, Pizza, ShoppingCart, Star, User, CarFront } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MapView } from '@/components/Map';
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { foodAPI, ordersAPI } from '@/services/api';
 import { useLocation } from 'wouter';
 import { toast } from 'sonner';
@@ -34,16 +34,6 @@ export default function FoodPage() {
       offer?: string;
     }>
   >([]);
-
-  const providerChips = useMemo(
-    () =>
-      [
-        { key: 'Swiggy', label: 'Swiggy' },
-        { key: 'Zomato', label: 'Zomato' },
-        { key: 'Blinkit', label: 'Blinkit' },
-      ] as const,
-    []
-  );
 
   const updateMarker = (next: { lat: number; lng: number }) => {
     if (!mapRef.current || !window.google?.maps?.marker?.AdvancedMarkerElement) return;
@@ -78,12 +68,29 @@ export default function FoodPage() {
       <div className="fit-shell">
         <div className="phone-screen">
           <section className="screen" style={{ paddingTop: 16, paddingBottom: 28 }}>
-            <div className="simple-topbar">
-              <button className="simple-topbar-button" type="button" onClick={() => setLocation('/home')} aria-label="Back">
-                ←
+            <div className="app-topbar">
+              <button className="app-icon-circle" type="button" aria-label="Menu" onClick={() => setLocation('/home')}>
+                <Menu size={22} strokeWidth={2.2} />
               </button>
-              <h2 className="simple-topbar-title">Food</h2>
-              <div className="simple-topbar-space" />
+              <div className="app-searchbar" role="search">
+                <input
+                  className="app-searchbar-input"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search for restaurants or dishes"
+                />
+                <button className="app-icon-ghost" type="button" aria-label="Voice">
+                  <Mic size={18} strokeWidth={2.4} />
+                </button>
+              </div>
+              <div className="flex items-center gap-2 justify-end">
+                <button className="app-icon-ghost" type="button" aria-label="Notifications" onClick={() => setLocation('/history')}>
+                  <Bell size={20} strokeWidth={2.2} />
+                </button>
+                <button className="app-icon-ghost" type="button" aria-label="Cart" onClick={() => setLocation('/history')}>
+                  <ShoppingCart size={20} strokeWidth={2.2} />
+                </button>
+              </div>
             </div>
 
             <form
@@ -93,82 +100,49 @@ export default function FoodPage() {
                 runSearch(query);
               }}
             >
-              <div className="home-prompt-card" style={{ gridTemplateColumns: '1fr auto' }}>
-                <input
-                  className="home-prompt-input"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search restaurants or dishes"
-                />
-                <button className="home-prompt-send" disabled={!query.trim() || isLoading} type="submit">
-                  →
-                </button>
+              <div className="rounded-2xl border border-orange-100 bg-white/95 p-4 shadow-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-sm text-muted-foreground flex items-center gap-2">
+                    <MapPin className="w-4 h-4" />
+                    <span>Deliver to</span>
+                    <span className="font-semibold text-foreground">MG Road</span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="gap-2"
+                    type="button"
+                    onClick={() => {
+                      navigator.geolocation?.getCurrentPosition(
+                        (pos) => {
+                          const next = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                          setCenter(next);
+                          mapRef.current?.setCenter(next);
+                          updateMarker(next);
+                        },
+                        () => {
+                          return;
+                        }
+                      );
+                    }}
+                  >
+                    <Crosshair className="w-4 h-4" />
+                    Use my location
+                  </Button>
+                </div>
+                <div className="mt-3 rounded-xl bg-orange-50 border border-orange-100 px-4 py-3 text-sm">
+                  <span className="font-bold text-orange-700">50% OFF</span> <span className="text-muted-foreground">up to ₹100</span>
+                  <div className="text-xs text-muted-foreground mt-1">Use code: FOOD50</div>
+                </div>
               </div>
             </form>
 
-            <div className="mt-4">
-              <div className="text-sm font-semibold text-foreground">Apps</div>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {providerChips.map((p) => {
-                  const active = providers.includes(p.key);
-                  return (
-                    <button
-                      key={p.key}
-                      type="button"
-                      onClick={() => {
-                        setProviders((prev) => (prev.includes(p.key) ? prev.filter((x) => x !== p.key) : [...prev, p.key]));
-                      }}
-                      className={`px-3 py-2 rounded-full border text-sm font-semibold transition-colors ${
-                        active ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-foreground border-orange-200 hover:bg-orange-50'
-                      }`}
-                    >
-                      {p.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="mt-4 rounded-2xl border border-orange-100 bg-white/90 p-4">
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-sm text-muted-foreground flex items-center gap-2">
-                  <MapPin className="w-4 h-4" />
-                  <span>
-                    {center.lat.toFixed(5)}, {center.lng.toFixed(5)}
-                  </span>
-                </div>
-                <Button
-                  variant="outline"
-                  className="gap-2"
-                  onClick={() => {
-                    navigator.geolocation?.getCurrentPosition(
-                      (pos) => {
-                        const next = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-                        setCenter(next);
-                        mapRef.current?.setCenter(next);
-                        updateMarker(next);
-                      },
-                      () => {
-                        return;
-                      }
-                    );
-                  }}
-                >
-                  <Crosshair className="w-4 h-4" />
-                  Use my location
-                </Button>
-              </div>
-              <div className="mt-2 text-xs text-muted-foreground flex items-center gap-2">
-                <Store className="w-4 h-4" />
-                <span>Providers: {providers.join(', ') || 'None selected'}</span>
-              </div>
-            </div>
+            <div className="mt-5 text-lg font-bold text-foreground">Popular Near You</div>
 
             <div className="mt-4">
               <MapView
                 initialCenter={center}
                 initialZoom={14}
-                className="h-[320px] lg:h-[520px] rounded-2xl overflow-hidden border border-orange-100"
+                className="h-[220px] lg:h-[520px] rounded-2xl overflow-hidden border border-orange-100"
                 onMapReady={(map) => {
                   mapRef.current = map;
                   updateMarker(center);
@@ -264,6 +238,31 @@ export default function FoodPage() {
                 ))}
               </div>
             </div>
+
+            <nav className="app-bottom-nav" aria-label="Bottom navigation">
+              <div className="app-bottom-nav-inner">
+                <button className="app-bottom-nav-item" type="button" onClick={() => setLocation('/home')} aria-label="Home">
+                  <span className="app-bottom-nav-bubble">
+                    <House size={22} strokeWidth={2.2} />
+                  </span>
+                </button>
+                <button className="app-bottom-nav-item" type="button" onClick={() => setLocation('/rides')} aria-label="Rides">
+                  <span className="app-bottom-nav-bubble">
+                    <CarFront size={22} strokeWidth={2.2} />
+                  </span>
+                </button>
+                <button className="app-bottom-nav-item app-bottom-nav-item-active" type="button" aria-label="Food">
+                  <span className="app-bottom-nav-bubble">
+                    <Pizza size={22} strokeWidth={2.2} />
+                  </span>
+                </button>
+                <button className="app-bottom-nav-item" type="button" onClick={() => setLocation('/profile')} aria-label="Profile">
+                  <span className="app-bottom-nav-bubble">
+                    <User size={22} strokeWidth={2.2} />
+                  </span>
+                </button>
+              </div>
+            </nav>
           </section>
         </div>
       </div>
