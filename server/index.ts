@@ -74,11 +74,18 @@ async function startServer() {
     res.sendFile(path.join(staticPath, "index.html"));
   });
 
-  const port = process.env.PORT || 3000;
+  const port = Number(process.env.PORT) || 3000;
 
-  server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
+  server.on("error", (err: any) => {
+    if (err && err.code === "EADDRINUSE") {
+      console.error(`Server port ${port} is already in use.`);
+      console.error(`Stop the existing process, or run: PORT=3002 pnpm dev:server`);
+      process.exit(1);
+    }
+    throw err;
   });
+
+  server.listen(port, () => console.log(`Server running on http://localhost:${port}/`));
 }
 
 startServer().catch(console.error);
