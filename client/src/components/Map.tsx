@@ -204,6 +204,7 @@ export function OsmMapView({
   useEffect(() => {
     if (!mapContainer.current) return;
     if (mapRef.current) return;
+    let destroyed = false;
 
     L.Icon.Default.mergeOptions({
       iconRetinaUrl,
@@ -260,14 +261,20 @@ export function OsmMapView({
     mapRef.current = map;
     onMapReady?.(map);
 
-    const ro = new ResizeObserver(() => {
+    const invalidate = () => {
+      if (destroyed) return;
       map.invalidateSize();
-    });
+    };
+
+    const ro = new ResizeObserver(invalidate);
     ro.observe(mapContainer.current);
-    window.setTimeout(() => map.invalidateSize(), 0);
-    window.setTimeout(() => map.invalidateSize(), 250);
+    const t0 = window.setTimeout(invalidate, 0);
+    const t1 = window.setTimeout(invalidate, 250);
 
     return () => {
+      destroyed = true;
+      window.clearTimeout(t0);
+      window.clearTimeout(t1);
       ro.disconnect();
       map.remove();
       mapRef.current = null;

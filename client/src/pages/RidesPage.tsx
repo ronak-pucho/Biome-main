@@ -14,6 +14,7 @@ export default function RidesPage() {
   const dropMarkerRef = useRef<L.CircleMarker | null>(null);
   const routeLineRef = useRef<L.Polyline | null>(null);
   const lastUserMapActionAtRef = useRef(0);
+  const isMountedRef = useRef(true);
 
   const [pickup, setPickup] = useState<{ lat: number; lng: number } | null>(null);
   const [dropoff, setDropoff] = useState<{ lat: number; lng: number } | null>(null);
@@ -64,6 +65,17 @@ export default function RidesPage() {
       routeLineRef.current = null;
     }
   };
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      mapRef.current = null;
+      pickupMarkerRef.current = null;
+      dropMarkerRef.current = null;
+      routeLineRef.current = null;
+    };
+  }, []);
 
   const pickupRef = useRef(pickup);
   const dropoffRef = useRef(dropoff);
@@ -155,6 +167,7 @@ export default function RidesPage() {
     point: { lat: number; lng: number },
     opts?: { label?: string; doReverse?: boolean; forcePan?: boolean }
   ) => {
+    if (!isMountedRef.current) return;
     const doReverse = opts?.doReverse ?? false;
     if (which === 'pickup') setPickup(point);
     else setDropoff(point);
@@ -518,7 +531,6 @@ export default function RidesPage() {
                   className="h-[320px] lg:h-[420px]"
                   onMapReady={(map: L.Map) => {
                     mapRef.current = map;
-                    window.setTimeout(() => map.invalidateSize(), 50);
                     setMapReadyTick((t) => t + 1);
                     const touch = () => {
                       lastUserMapActionAtRef.current = Date.now();
