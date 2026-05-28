@@ -16,7 +16,7 @@ import AuthPage from "./pages/AuthPage";
 import AboutPage from "./pages/AboutPage";
 import ProfilePage from "./pages/ProfilePage";
 import ContactPage from "./pages/ContactPage";
-import { ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, CarFront, History, House, Pizza, User } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { ordersAPI } from "@/services/api";
 import { toast } from "sonner";
@@ -33,6 +33,20 @@ function Redirect({ to }: { to: string }) {
     setLocation(to);
   }, [setLocation, to]);
   return null;
+}
+
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const update = () => setIsDesktop(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  return isDesktop;
 }
 
 function WelcomeScreen() {
@@ -75,6 +89,87 @@ function WelcomeScreen() {
         </div>
       </div>
     </div>
+  );
+}
+
+function DesktopSidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+  const [location, setLocation] = useLocation();
+  const isDesktop = useIsDesktop();
+  const hide = location === "/" || location.startsWith("/login");
+
+  if (!isDesktop || hide) return null;
+
+  const activePage = location.startsWith("/history")
+    ? "history"
+    : location.startsWith("/food")
+      ? "food"
+      : location.startsWith("/rides")
+        ? "rides"
+        : "home";
+
+  const RECENT = ["Book a ride to airport", "Order pizza near me", "Best phone under 30k", "Compare iPhone 15 prices"];
+
+  return (
+    <aside className={`home-sidebar ${collapsed ? "home-sidebar-collapsed" : ""}`}>
+      <div className="home-sidebar-inner">
+        <div className="home-sidebar-top">
+          <div className="home-sidebar-brand">
+            <h3 className="home-sidebar-title">Deepenk</h3>
+            <div className="home-sidebar-logo">D</div>
+          </div>
+          <button type="button" className="home-sidebar-toggle" aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} onClick={onToggle}>
+            {collapsed ? <ArrowRight className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
+          </button>
+        </div>
+
+        <nav className="home-sidebar-nav" aria-label="Sidebar navigation">
+          <Link className={`home-sidebar-link ${activePage === "home" ? "home-sidebar-link-active" : ""}`} href="/home">
+            <House size={22} strokeWidth={2.1} />
+            <span>Home</span>
+          </Link>
+          <Link className={`home-sidebar-link ${activePage === "history" ? "home-sidebar-link-active" : ""}`} href="/history">
+            <History size={22} strokeWidth={2.1} />
+            <span>History</span>
+          </Link>
+          <Link className={`home-sidebar-link ${activePage === "food" ? "home-sidebar-link-active" : ""}`} href="/food">
+            <Pizza size={22} strokeWidth={2.1} />
+            <span>Food</span>
+          </Link>
+          <Link className={`home-sidebar-link ${activePage === "rides" ? "home-sidebar-link-active" : ""}`} href="/rides">
+            <CarFront size={22} strokeWidth={2.1} />
+            <span>Rides</span>
+          </Link>
+        </nav>
+
+        <div className="home-sidebar-scroll">
+          <div className="mt-2">
+            <div className="text-sm font-semibold text-foreground mb-2">Recent</div>
+            <div className="space-y-2">
+              {RECENT.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  className="w-full text-left rounded-lg px-2 py-2 text-sm text-foreground hover:bg-amber-50"
+                  onClick={() => {
+                    window.localStorage.setItem("home_prompt_draft", c);
+                    setLocation("/home");
+                  }}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="home-sidebar-bottom">
+          <button type="button" className="w-full rounded-full border border-amber-200 bg-white px-4 py-3 font-semibold text-foreground" onClick={() => setLocation("/profile")}>
+            <span className="home-sidebar-bottom-label">Profile</span>
+            <User className="home-sidebar-bottom-icon" size={18} strokeWidth={2.2} />
+          </button>
+        </div>
+      </div>
+    </aside>
   );
 }
 
@@ -311,32 +406,46 @@ function HistoryScreen() {
 }
 
 function Router() {
+  const isDesktop = useIsDesktop();
+  const [sidebarExpanded, setSidebarExpanded] = useState(() => {
+    const saved = window.localStorage.getItem("sidebar_expanded");
+    return saved ? saved === "1" : true;
+  });
+  useEffect(() => {
+    window.localStorage.setItem("sidebar_expanded", sidebarExpanded ? "1" : "0");
+  }, [sidebarExpanded]);
+
+  const shellClass = isDesktop ? `app-shell with-sidebar ${sidebarExpanded ? "" : "sidebar-collapsed"}` : "app-shell";
+
   return (
-    <Switch>
-      <Route path="/" component={WelcomeScreen} />
-      <Route path="/home" component={SearchPage} />
-      <Route path="/history" component={HistoryScreen} />
-      <Route path="/login" component={AuthPage} />
-      <Route path="/auth">
-        <Redirect to="/login" />
-      </Route>
-      <Route path="/web" component={Home} />
-      <Route path="/search" component={SearchPage} />
-      <Route path="/deals">
-        <Redirect to="/web" />
-      </Route>
-      <Route path="/dashboard" component={DashboardPage} />
-      <Route path="/ecommerce" component={EcommercePage} />
-      <Route path="/food" component={FoodPage} />
-      <Route path="/rides" component={RidesPage} />
-      <Route path="/travel" component={TravelPage} />
-      <Route path="/hospitality" component={HospitalityPage} />
-      <Route path="/about" component={AboutPage} />
-      <Route path="/profile" component={ProfilePage} />
-      <Route path="/contact" component={ContactPage} />
-      <Route path="/404" component={NotFound} />
-      <Route component={NotFound} />
-    </Switch>
+    <div className={shellClass}>
+      <DesktopSidebar collapsed={!sidebarExpanded} onToggle={() => setSidebarExpanded((v) => !v)} />
+      <Switch>
+        <Route path="/" component={WelcomeScreen} />
+        <Route path="/home" component={SearchPage} />
+        <Route path="/history" component={HistoryScreen} />
+        <Route path="/login" component={AuthPage} />
+        <Route path="/auth">
+          <Redirect to="/login" />
+        </Route>
+        <Route path="/web" component={Home} />
+        <Route path="/search" component={SearchPage} />
+        <Route path="/deals">
+          <Redirect to="/web" />
+        </Route>
+        <Route path="/dashboard" component={DashboardPage} />
+        <Route path="/ecommerce" component={EcommercePage} />
+        <Route path="/food" component={FoodPage} />
+        <Route path="/rides" component={RidesPage} />
+        <Route path="/travel" component={TravelPage} />
+        <Route path="/hospitality" component={HospitalityPage} />
+        <Route path="/about" component={AboutPage} />
+        <Route path="/profile" component={ProfilePage} />
+        <Route path="/contact" component={ContactPage} />
+        <Route path="/404" component={NotFound} />
+        <Route component={NotFound} />
+      </Switch>
+    </div>
   );
 }
 
