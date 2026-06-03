@@ -17,6 +17,9 @@ const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = express();
+  app.get("/", (req, res) => {
+  res.send("API Running Successfully");
+});
   const server = createServer(app);
   createSocketServer(server);
   startOrderPaymentsSync();
