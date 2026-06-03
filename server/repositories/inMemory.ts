@@ -48,6 +48,50 @@ export class InMemoryUserRepo {
     return this.users.get(id) ?? null;
   }
 
+  async findByEmail(email: string) {
+    return Array.from(this.users.values()).find((u) => u.email === email) ?? null;
+  }
+
+  async findByPhone(phone: string) {
+    return Array.from(this.users.values()).find((u) => u.phone === phone || u.mobile_number === phone) ?? null;
+  }
+
+  async signUp(input: {
+    name: string;
+    mobile_number: string;
+    email: string;
+    password_hash: string;
+    dob?: string;
+    location?: string;
+    device_id?: string;
+    version_code?: string | number;
+    version_name?: string;
+    profile_pic?: string;
+    device_type?: "android" | "ios" | "web" | "other";
+  }) {
+    const now = new Date().toISOString();
+    const created: UserEntity = {
+      id: `usr_${nanoid(12)}`,
+      email: input.email.trim().toLowerCase(),
+      phone: input.mobile_number,
+      mobile_number: input.mobile_number,
+      name: input.name,
+      password_hash: input.password_hash,
+      provider: "signup",
+      dob: input.dob,
+      location: input.location,
+      device_id: input.device_id,
+      version_code: input.version_code,
+      version_name: input.version_name,
+      profile_pic: input.profile_pic,
+      device_type: input.device_type,
+      createdAt: now,
+      lastLogin: now,
+    };
+    this.users.set(created.id, created);
+    return created;
+  }
+
   async updateById(id: string, patch: Partial<Pick<UserEntity, "name" | "preferences">>) {
     const existing = await this.getById(id);
     if (!existing) return null;

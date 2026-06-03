@@ -69,10 +69,20 @@ export type UserEntity = {
   phone?: string;
   name?: string;
   avatar?: string;
-  provider: "google" | "email" | "phone";
+  provider: "google" | "email" | "phone" | "signup";
   preferences?: Record<string, unknown>;
   lastLogin?: string;
   createdAt: string;
+  // Sign-up extended fields
+  mobile_number?: string;
+  password_hash?: string;
+  dob?: string;
+  location?: string;
+  device_id?: string;
+  version_code?: string | number;
+  version_name?: string;
+  profile_pic?: string;
+  device_type?: "android" | "ios" | "web" | "other";
 };
 
 export type SearchHistoryEntity = {

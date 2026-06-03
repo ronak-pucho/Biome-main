@@ -1,7 +1,9 @@
 import { Router, type Request, type Response } from "express";
 import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { EmailLoginSchema } from "../dto/auth";
+import { SignUpSchema } from "../dto/signUp";
 import { authOptional, authRequired } from "../middleware/auth";
 import { userRepo } from "../repositories";
 import { otpService } from "../services/otpService";
@@ -112,6 +114,60 @@ router.post("/login", async (req: Request, res: Response) => {
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
   res.json({ user, token });
+});
+
+// ─── Sign-Up ───────────────────────────────────────────────────────────────
+router.post("/sign-up", async (req: Request, res: Response) => {
+  const parsed = SignUpSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "INVALID_BODY", details: parsed.error.flatten() });
+    return;
+  }
+
+  const { name, mobile_number, email, password, dob, location, device_id, version_code, version_name, profile_pic, device_type } = parsed.data;
+
+  // Duplicate email check
+  const existingEmail = await (userRepo as any).findByEmail?.(email);
+  if (existingEmail) {
+    res.status(409).json({ error: "EMAIL_ALREADY_EXISTS" });
+    return;
+  }
+
+  // Duplicate mobile check
+  const existingPhone = await (userRepo as any).findByPhone?.(mobile_number);
+  if (existingPhone) {
+    res.status(409).json({ error: "MOBILE_ALREADY_EXISTS" });
+    return;
+  }
+
+  // Hash password
+  const password_hash = await bcrypt.hash(password, 12);
+
+  const user = await (userRepo as any).signUp({
+    name,
+    mobile_number,
+    email,
+    password_hash,
+    dob,
+    location,
+    device_id,
+    version_code,
+    version_name,
+    profile_pic,
+    device_type,
+  });
+
+  const token = signToken({ id: user.id, email: user.email, phone: user.mobile_number, name: user.name });
+  res.cookie("deepenk_token", token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+
+  // Omit sensitive data from response
+  const { password_hash: _ph, ...safeUser } = user;
+  res.status(201).json({ user: safeUser, token });
 });
 
 router.post("/otp/request", async (req: Request, res: Response) => {

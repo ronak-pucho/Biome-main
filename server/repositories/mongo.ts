@@ -83,6 +83,59 @@ export class MongoUserRepo implements Pick<InMemoryUserRepo, "upsertByEmail" | "
     return { ...doc, id: doc._id };
   }
 
+  async findByEmail(email: string) {
+    const col = await this.col();
+    const doc = await col.findOne({ email: email.trim().toLowerCase() });
+    if (!doc) return null;
+    return { ...doc, id: doc._id };
+  }
+
+  async findByPhone(phone: string) {
+    const col = await this.col();
+    const doc = await col.findOne({ $or: [{ phone }, { mobile_number: phone }] });
+    if (!doc) return null;
+    return { ...doc, id: doc._id };
+  }
+
+  async signUp(input: {
+    name: string;
+    mobile_number: string;
+    email: string;
+    password_hash: string;
+    dob?: string;
+    location?: string;
+    device_id?: string;
+    version_code?: string | number;
+    version_name?: string;
+    profile_pic?: string;
+    device_type?: "android" | "ios" | "web" | "other";
+  }) {
+    const now = new Date().toISOString();
+    const col = await this.col();
+    const email = input.email.trim().toLowerCase();
+    const _id = cryptoRandomId("usr");
+    const doc: UserDoc = {
+      _id,
+      email,
+      phone: input.mobile_number,
+      mobile_number: input.mobile_number,
+      name: input.name,
+      password_hash: input.password_hash,
+      provider: "signup",
+      dob: input.dob,
+      location: input.location,
+      device_id: input.device_id,
+      version_code: input.version_code,
+      version_name: input.version_name,
+      profile_pic: input.profile_pic,
+      device_type: input.device_type,
+      createdAt: now,
+      lastLogin: now,
+    };
+    await col.insertOne(doc);
+    return { ...doc, id: doc._id };
+  }
+
   async updateById(id: string, patch: Partial<Pick<UserEntity, "name" | "preferences">>) {
     const col = await this.col();
     await col.updateOne({ _id: id }, { $set: patch });
