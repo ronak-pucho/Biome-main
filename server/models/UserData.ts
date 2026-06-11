@@ -8,6 +8,8 @@ const UserDataSchema = new mongoose.Schema({
   device_id: { type: String, default: "" },
   version_name: { type: String, default: "" },
   version_code: { type: String, default: "" },
+  resetOtp: { type: String, default: null },
+  resetOtpExpiry: { type: Date, default: null }
 }, {
   timestamps: true,
   collection: "users_data" // Enforce the collection name "users_data"

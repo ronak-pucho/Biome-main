@@ -128,4 +128,147 @@ router.get("/me", authRequired(), async (req: Request, res: Response) => {
   }
 });
 
+import nodemailer from "nodemailer";
+
+// --- FORGOT PASSWORD APIs ---
+
+// Configure Nodemailer transporter (reads from .env)
+const getTransporter = () => {
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST || "smtp.gmail.com",
+    port: Number(process.env.SMTP_PORT) || 587,
+    secure: false, // true for 465, false for other ports
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
+};
+
+const ForgotPasswordSchema = z.object({
+  email: z.string().trim().toLowerCase().email("Invalid email address"),
+});
+
+router.post("/forgot-password", async (req: Request, res: Response) => {
+  try {
+    const parsed = ForgotPasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "INVALID_BODY", details: parsed.error.flatten() });
+      return;
+    }
+
+    const { email } = parsed.data;
+    const user = await UserDataModel.findOne({ email });
+    
+    if (!user) {
+      // Don't leak whether the email exists or not
+      res.json({ success: true, message: "If an account with that email exists, we sent an OTP." });
+      return;
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 mins from now
+
+    user.resetOtp = otp;
+    user.resetOtpExpiry = expiry;
+    await user.save();
+
+    // Send email
+    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+      const transporter = getTransporter();
+      await transporter.sendMail({
+        from: `"Notes App Support" <${process.env.SMTP_USER}>`,
+        to: user.email,
+        subject: "Your Password Reset OTP",
+        text: `Your OTP for resetting your password is: ${otp}\nThis OTP will expire in 15 minutes.`,
+        html: `<h3>Password Reset</h3><p>Your OTP for resetting your password is: <strong>${otp}</strong></p><p>This OTP will expire in 15 minutes.</p>`,
+      });
+      console.log(`OTP sent to ${email}`);
+    } else {
+      // For testing when email is not configured
+      console.warn(`[WARNING] Email not configured. OTP for ${email} is: ${otp}`);
+    }
+
+    res.json({ success: true, message: "OTP sent to your email." });
+  } catch (error) {
+    console.error("Forgot Password Error:", error);
+    res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
+  }
+});
+
+const VerifyOtpSchema = z.object({
+  email: z.string().trim().toLowerCase().email("Invalid email address"),
+  otp: z.string().trim().min(6, "OTP must be at least 6 digits"),
+});
+
+router.post("/verify-otp", async (req: Request, res: Response) => {
+  try {
+    const parsed = VerifyOtpSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "INVALID_BODY", details: parsed.error.flatten() });
+      return;
+    }
+
+    const { email, otp } = parsed.data;
+    const user = await UserDataModel.findOne({ email });
+
+    if (!user || user.resetOtp !== otp) {
+      res.status(400).json({ error: "INVALID_OTP" });
+      return;
+    }
+
+    if (!user.resetOtpExpiry || user.resetOtpExpiry < new Date()) {
+      res.status(400).json({ error: "OTP_EXPIRED" });
+      return;
+    }
+
+    res.json({ success: true, message: "OTP verified. You can now reset your password." });
+  } catch (error) {
+    console.error("Verify OTP Error:", error);
+    res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
+  }
+});
+
+const ResetPasswordSchema = z.object({
+  email: z.string().trim().toLowerCase().email("Invalid email address"),
+  otp: z.string().trim().min(6, "OTP must be at least 6 digits"),
+  newPassword: z.string().min(6, "Password must be at least 6 characters"),
+});
+
+router.post("/reset-password", async (req: Request, res: Response) => {
+  try {
+    const parsed = ResetPasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "INVALID_BODY", details: parsed.error.flatten() });
+      return;
+    }
+
+    const { email, otp, newPassword } = parsed.data;
+    const user = await UserDataModel.findOne({ email });
+
+    if (!user || user.resetOtp !== otp) {
+      res.status(400).json({ error: "INVALID_OTP" });
+      return;
+    }
+
+    if (!user.resetOtpExpiry || user.resetOtpExpiry < new Date()) {
+      res.status(400).json({ error: "OTP_EXPIRED" });
+      return;
+    }
+
+    // Hash new password and clear OTP
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    user.passwordHash = passwordHash;
+    user.resetOtp = null as any;
+    user.resetOtpExpiry = null as any;
+    await user.save();
+
+    res.json({ success: true, message: "Password has been successfully reset." });
+  } catch (error) {
+    console.error("Reset Password Error:", error);
+    res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
+  }
+});
+
 export default router;
