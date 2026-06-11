@@ -88,7 +88,8 @@ async function startServer() {
     }
     throw err;
   });
-  await mongoose.connect(process.env.MONGO_URL!);
+  // Connect to the new 'notes' database using Mongoose
+  await mongoose.connect(process.env.MONGO_URL!, { dbName: "notes" });
 
   console.log("MongoDB Connected");
   server.listen(port, () => console.log(`Server running on http://localhost:${port}/`));
