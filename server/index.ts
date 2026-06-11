@@ -17,9 +17,10 @@ const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = express();
+  app.set("trust proxy", 1);
   app.get("/", (req, res) => {
-  res.send("API Running Successfully");
-});
+    res.send("API Running Successfully");
+  });
   const server = createServer(app);
   createSocketServer(server);
   startOrderPaymentsSync();
@@ -87,9 +88,9 @@ async function startServer() {
     }
     throw err;
   });
-await mongoose.connect(process.env.MONGO_URL!);
+  await mongoose.connect(process.env.MONGO_URL!);
 
-console.log("MongoDB Connected");
+  console.log("MongoDB Connected");
   server.listen(port, () => console.log(`Server running on http://localhost:${port}/`));
 }
 
