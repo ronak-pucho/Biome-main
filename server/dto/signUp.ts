@@ -7,7 +7,7 @@ export const SignUpSchema = z.object({
     .trim()
     .min(8, "Mobile number must be at least 8 digits")
     .max(20, "Mobile number too long"),
-  email: z.string().email("Invalid email address"),
+  email: z.string().trim().toLowerCase().email("Invalid email address"),
   password: z
     .string()
     .min(6, "Password must be at least 6 characters")
