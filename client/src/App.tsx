@@ -16,6 +16,7 @@ import AuthPage from "./pages/AuthPage";
 import AboutPage from "./pages/AboutPage";
 import ProfilePage from "./pages/ProfilePage";
 import ContactPage from "./pages/ContactPage";
+import AdminPage from "./pages/AdminPage";
 import { ArrowLeft, ArrowRight, CarFront, History, House, Pizza, User } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { ordersAPI } from "@/services/api";
@@ -95,7 +96,7 @@ function WelcomeScreen() {
 function DesktopSidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const [location, setLocation] = useLocation();
   const isDesktop = useIsDesktop();
-  const hide = location === "/" || location.startsWith("/login");
+  const hide = location === "/" || location.startsWith("/login") || location.startsWith("/admin");
 
   if (!isDesktop || hide) return null;
 
@@ -442,6 +443,7 @@ function Router() {
         <Route path="/about" component={AboutPage} />
         <Route path="/profile" component={ProfilePage} />
         <Route path="/contact" component={ContactPage} />
+        <Route path="/admin" component={AdminPage} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>

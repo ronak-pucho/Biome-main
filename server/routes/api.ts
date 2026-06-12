@@ -17,6 +17,8 @@ import ordersRouter from "./orders";
 import usersDataRouter from "./usersData";
 import friendsRouter from "./friends";
 import expensesRouter from "./expenses";
+import notesRouter from "./notes";
+import adminRouter from "./admin";
 import { authRequired } from "../middleware/auth";
 import { clickRepo, searchRepo } from "../repositories";
 import { searchEngine } from "../services/searchEngine";
@@ -40,6 +42,8 @@ router.use("/orders", ordersRouter);
 router.use("/users_data", usersDataRouter);
 router.use("/friends", authRequired(), friendsRouter);
 router.use("/expenses", authRequired(), expensesRouter);
+router.use("/notes", authRequired(), notesRouter);
+router.use("/admin", adminRouter);
 
 router.get("/history", authRequired(), async (req: Request, res: Response) => {
   const limit = z.coerce.number().int().min(1).max(100).optional().safeParse(req.query.limit);
