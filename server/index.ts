@@ -27,9 +27,10 @@ async function startServer() {
   startOrderPaymentsSync();
 
   app.use(
+    ["/api", "/auth"],
     cors({
       origin: (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
-        const allowed = (process.env.CORS_ORIGIN || "http://localhost:3001")
+        const allowed = (process.env.CORS_ORIGIN || "http://localhost:3001,https://biome-main.onrender.com")
           .split(",")
           .map((s) => s.trim())
           .filter(Boolean);
